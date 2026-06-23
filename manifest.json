@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Merly TikTok Live Clip Downloader",
+  "version": "0.1.0",
+  "description": "Quet va tai hang loat clip live teaser tu TikTok Seller cua shop.",
+  "permissions": [
+    "downloads",
+    "storage",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "https://seller-vn.tiktok.com/*",
+    "https://seller.tiktok.com/*",
+    "https://*.akamaized.net/*",
+    "https://*.byteoversea.com/*",
+    "https://*.tiktokcdn.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://seller-vn.tiktok.com/*",
+        "https://seller.tiktok.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": [
+        "https://seller-vn.tiktok.com/*",
+        "https://seller.tiktok.com/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_title": "Merly TikTok Clips"
+  }
+}
