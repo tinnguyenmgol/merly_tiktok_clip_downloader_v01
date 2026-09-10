@@ -2,15 +2,19 @@
   if (window.__MERLY_TT_INJECTED__) return;
   window.__MERLY_TT_INJECTED__ = true;
 
-  const GOOD_RE = /(mime_type=video_mp4|\.mp4(?:\?|$)|video\/tos|v16m-default|akamaized|video_mp4|download=true)/i;
-  const BAD_RE = /(mon-va|gali-mcs|collect|monitor|analytics|video_performance|sentry|log|abtest|captcha)/i;
+  const GOOD_RE = /(mime_type=video_mp4|\.(?:mp4|m4v|mov)(?:\?|$)|video\/tos|\/tos-[^/]*(?:ve|video)[^/]*\/|v\d+[a-z0-9-]*\.(?:tiktokcdn(?:-us)?|tiktokv)\.com|v\d+[a-z0-9-]*-(?:default|webapp)[^/]*\.|akamaized|byteoversea|ibytedtos|video_mp4|download=true)/i;
+  const BAD_RE = /(mon-va|gali-mcs|\/collect(?:\/|\?|$)|\/monitor(?:\/|\?|$)|analytics|video_performance|sentry|abtest|captcha|mime_type=image|\.(?:jpe?g|png|webp|gif|svg)(?:~|\?|$))/i;
   const found = new Set();
 
   function normalize(raw) {
     if (!raw || typeof raw !== 'string') return '';
-    let url = raw.replaceAll('\\/', '/').replaceAll('\\u0026', '&').trim();
-    try { url = decodeURIComponent(url); } catch (_) {}
-    return url;
+    return raw
+      .replace(/\\u0026/gi, '&')
+      .replace(/\\u002f/gi, '/')
+      .replace(/\\\//g, '/')
+      .replace(/&amp;/gi, '&')
+      .trim()
+      .replace(/["'\\),;]+$/g, '');
   }
 
   function isLikely(url) {
@@ -36,8 +40,23 @@
 
   function scanText(text) {
     if (!text || typeof text !== 'string') return;
-    const matches = text.match(/https?:\\?\/\\?\/[^"'<>\s]+/g) || [];
+    const normalized = text
+      .replace(/\\u0026/gi, '&')
+      .replace(/\\u002f/gi, '/')
+      .replace(/\\\//g, '/')
+      .replace(/&amp;/gi, '&');
+    const matches = normalized.match(/https?:\/\/[^\s"'<>\\]+/g) || [];
     emit(matches);
+  }
+
+  function scanObject(value, seen = new WeakSet()) {
+    if (typeof value === 'string') {
+      scanText(value);
+      return;
+    }
+    if (!value || typeof value !== 'object' || seen.has(value)) return;
+    seen.add(value);
+    for (const child of Object.values(value)) scanObject(child, seen);
   }
 
   function scanPerformance() {
@@ -77,7 +96,9 @@
       this.addEventListener('load', function() {
         try {
           const contentType = this.getResponseHeader && (this.getResponseHeader('content-type') || '');
-          if (/json|text|javascript/i.test(contentType) || typeof this.responseText === 'string') {
+          if (this.responseType === 'json') {
+            scanObject(this.response);
+          } else if (/json|text|javascript/i.test(contentType) || typeof this.responseText === 'string') {
             scanText(this.responseText || '');
           }
         } catch (_) {}
