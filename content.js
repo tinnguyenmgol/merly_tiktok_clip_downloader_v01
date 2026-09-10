@@ -1,10 +1,15 @@
 (() => {
   const PANEL_ID = 'merly-tt-clip-panel';
-  const GOOD_RE = /(mime_type=video_mp4|\.mp4(?:\?|$)|video\/tos|v16m-default|akamaized|video_mp4|download=true)/i;
-  const BAD_RE = /(mon-va|gali-mcs|collect|monitor|analytics|video_performance|sentry|log|abtest|captcha)/i;
+  const GOOD_RE = /(mime_type=video_mp4|\.(?:mp4|m4v|mov)(?:\?|$)|video\/tos|\/tos-[^/]*(?:ve|video)[^/]*\/|v\d+[a-z0-9-]*\.(?:tiktokcdn(?:-us)?|tiktokv)\.com|v\d+[a-z0-9-]*-(?:default|webapp)[^/]*\.|akamaized|byteoversea|ibytedtos|video_mp4|download=true)/i;
+  const BAD_RE = /(mon-va|gali-mcs|\/collect(?:\/|\?|$)|\/monitor(?:\/|\?|$)|analytics|video_performance|sentry|abtest|captcha|mime_type=image|\.(?:jpe?g|png|webp|gif|svg)(?:~|\?|$))/i;
+  let autoScanTimer = null;
 
   function isTargetPage() {
-    return /seller(-vn)?\.tiktok\.com/i.test(location.hostname) && /live-selling\/teasers/i.test(location.pathname);
+    const host = location.hostname.toLowerCase();
+    const path = location.pathname.toLowerCase();
+    const isSellerTeasers = /seller(-vn)?\.tiktok\.com$/.test(host) && /\/live-selling\/teasers(?:\/|$)/.test(path);
+    const isLiveHighlights = host === 'shop.tiktok.com' && /\/streamer\/live\/highlights(?:\/|$)/.test(path);
+    return isSellerTeasers || isLiveHighlights;
   }
 
   function isLikelyVideoUrl(url) {
@@ -37,6 +42,48 @@
     } catch (_) {
       return [];
     }
+  }
+
+  function normalizeText(text) {
+    return String(text || '')
+      .replace(/\\u0026/gi, '&')
+      .replace(/\\u002f/gi, '/')
+      .replace(/\\\//g, '/')
+      .replace(/&amp;/gi, '&');
+  }
+
+  function extractUrlsFromText(text) {
+    const normalized = normalizeText(text);
+    const matches = normalized.match(/https?:\/\/[^\s"'<>\\]+/g) || [];
+    return matches.map(url => url.replace(/[),;]+$/g, '')).filter(isLikelyVideoUrl);
+  }
+
+  function extractUrlsFromDom(options = {}) {
+    const urls = [];
+    const selectors = [
+      'video[src]',
+      'video source[src]',
+      'a[href]',
+      '[data-src]',
+      '[data-video-url]',
+      '[data-play-url]',
+      '[data-download-url]'
+    ];
+
+    for (const node of document.querySelectorAll(selectors.join(','))) {
+      for (const attr of ['src', 'href', 'data-src', 'data-video-url', 'data-play-url', 'data-download-url']) {
+        const value = node.getAttribute && node.getAttribute(attr);
+        if (value && isLikelyVideoUrl(value)) urls.push(value);
+      }
+    }
+
+    if (options.includeScripts) {
+      for (const script of document.querySelectorAll('script:not([src])')) {
+        urls.push(...extractUrlsFromText(script.textContent || ''));
+      }
+    }
+
+    return [...new Set(urls)];
   }
 
   async function addUrls(urls, source) {
@@ -95,11 +142,13 @@
   }
 
   async function scanNow() {
-    const urls = extractUrlsFromPerformance();
-    const res = await addUrls(urls, 'performance');
+    const performanceUrls = extractUrlsFromPerformance();
+    const domUrls = extractUrlsFromDom({ includeScripts: true });
+    const urls = [...new Set([...performanceUrls, ...domUrls])];
+    const res = await addUrls(urls, 'manual-scan');
     await updateCount();
     if (!urls.length && (!res || !res.total)) {
-      setStatus('Chưa thấy link. Bấm play vài clip rồi quét lại.', 'error');
+      setStatus('Chưa thấy link. Cuộn trang, bấm play vài clip rồi quét lại.', 'error');
     } else {
       setStatus(`Đã quét: +${res && typeof res.added === 'number' ? res.added : 0} link mới.`, 'success');
     }
@@ -180,7 +229,9 @@
     body.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:8px;font-size:12px;';
 
     const hint = document.createElement('div');
-    hint.textContent = 'Cuộn trang, bấm play clip cần lấy, rồi bấm Quét/Tải.';
+    hint.textContent = location.hostname === 'shop.tiktok.com'
+      ? 'Cuộn trang Highlights để TikTok nạp clip, rồi bấm Quét/Tải.'
+      : 'Cuộn trang, bấm play clip cần lấy, rồi bấm Quét/Tải.';
     hint.style.cssText = 'line-height:1.35;color:#4b5563;';
 
     const row1 = document.createElement('div');
@@ -217,14 +268,22 @@
   }
 
   function boot() {
-    if (!isTargetPage()) return;
+    if (!isTargetPage()) {
+      const panel = document.getElementById(PANEL_ID);
+      if (panel) panel.remove();
+      return;
+    }
     injectMainWorldScanner();
     createPanel();
-    setInterval(async () => {
+    if (autoScanTimer) return;
+    autoScanTimer = setInterval(async () => {
       if (!isTargetPage()) return;
-      const urls = extractUrlsFromPerformance();
+      const urls = [...new Set([
+        ...extractUrlsFromPerformance(),
+        ...extractUrlsFromDom()
+      ])];
       if (urls.length) {
-        await addUrls(urls, 'performance:auto');
+        await addUrls(urls, 'auto-scan');
         await updateCount();
       }
     }, 2500);

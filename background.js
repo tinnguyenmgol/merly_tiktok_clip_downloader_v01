@@ -1,8 +1,8 @@
 const STORE_KEY = 'merlyTikTokVideoUrls';
 const MAX_URLS = 1500;
 
-const GOOD_RE = /(mime_type=video_mp4|\.mp4(?:\?|$)|video\/tos|v16m-default|akamaized|video_mp4|download=true)/i;
-const BAD_RE = /(mon-va|gali-mcs|collect|monitor|analytics|video_performance|sentry|log|abtest|captcha)/i;
+const GOOD_RE = /(mime_type=video_mp4|\.(?:mp4|m4v|mov)(?:\?|$)|video\/tos|\/tos-[^/]*(?:ve|video)[^/]*\/|v\d+[a-z0-9-]*\.(?:tiktokcdn(?:-us)?|tiktokv)\.com|v\d+[a-z0-9-]*-(?:default|webapp)[^/]*\.|akamaized|byteoversea|ibytedtos|video_mp4|download=true)/i;
+const BAD_RE = /(mon-va|gali-mcs|\/collect(?:\/|\?|$)|\/monitor(?:\/|\?|$)|analytics|video_performance|sentry|abtest|captcha|mime_type=image|\.(?:jpe?g|png|webp|gif|svg)(?:~|\?|$))/i;
 
 function isLikelyVideoUrl(url) {
   if (!url || typeof url !== 'string') return false;
@@ -12,9 +12,13 @@ function isLikelyVideoUrl(url) {
 
 function cleanUrl(rawUrl) {
   if (!rawUrl || typeof rawUrl !== 'string') return '';
-  let url = rawUrl.trim();
-  try { url = decodeURIComponent(url); } catch (_) {}
-  return url;
+  return rawUrl
+    .replace(/\\u0026/gi, '&')
+    .replace(/\\u002f/gi, '/')
+    .replace(/\\\//g, '/')
+    .replace(/&amp;/gi, '&')
+    .trim()
+    .replace(/["'\\),;]+$/g, '');
 }
 
 async function getStoredUrls() {
@@ -158,9 +162,13 @@ chrome.webRequest.onBeforeRequest.addListener(
     urls: [
       'https://*.akamaized.net/*',
       'https://*.byteoversea.com/*',
+      'https://*.ibytedtos.com/*',
       'https://*.tiktokcdn.com/*',
+      'https://*.tiktokcdn-us.com/*',
+      'https://*.tiktokv.com/*',
       'https://seller-vn.tiktok.com/*',
-      'https://seller.tiktok.com/*'
+      'https://seller.tiktok.com/*',
+      'https://shop.tiktok.com/*'
     ]
   }
 );
