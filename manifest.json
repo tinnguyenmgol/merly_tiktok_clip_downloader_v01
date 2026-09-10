@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Merly TikTok Live Clip Downloader",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Quet va tai hang loat clip live teaser va LIVE Highlights tu TikTok Shop.",
   "permissions": [
     "downloads",

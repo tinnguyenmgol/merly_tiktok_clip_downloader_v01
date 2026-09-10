@@ -1,8 +1,9 @@
 (() => {
   const PANEL_ID = 'merly-tt-clip-panel';
-  const GOOD_RE = /(mime_type=video_mp4|\.(?:mp4|m4v|mov)(?:\?|$)|video\/tos|\/tos-[^/]*(?:ve|video)[^/]*\/|v\d+[a-z0-9-]*\.(?:tiktokcdn(?:-us)?|tiktokv)\.com|v\d+[a-z0-9-]*-(?:default|webapp)[^/]*\.|akamaized|byteoversea|ibytedtos|video_mp4|download=true)/i;
+  const GOOD_RE = /(mime_type=video_mp4|\.(?:mp4|m4v|mov)(?:[?#&]|$)|video\/tos|\/tos-[^/]*(?:ve|video)[^/]*\/|v\d+[a-z0-9-]*\.(?:tiktokcdn(?:-us)?|tiktokv)\.com|v\d+[a-z0-9-]*-(?:default|webapp)[^/]*\.|video_mp4)/i;
   const BAD_RE = /(mon-va|gali-mcs|\/collect(?:\/|\?|$)|\/monitor(?:\/|\?|$)|analytics|video_performance|sentry|abtest|captcha|mime_type=image|\.(?:jpe?g|png|webp|gif|svg)(?:~|\?|$))/i;
   let autoScanTimer = null;
+  let fullScanInProgress = false;
 
   function isTargetPage() {
     const host = location.hostname.toLowerCase();
@@ -154,6 +155,67 @@
     }
   }
 
+  function getScrollTargets() {
+    const targets = [];
+    if (document.scrollingElement) targets.push(document.scrollingElement);
+
+    const candidates = [...document.querySelectorAll('main, [role="main"], div')]
+      .filter(el => {
+        if (!el || el === document.scrollingElement) return false;
+        const style = getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return /(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 300 && rect.width * rect.height > 40000;
+      })
+      .sort((a, b) => (b.scrollHeight - b.clientHeight) - (a.scrollHeight - a.clientHeight));
+
+    if (candidates[0]) targets.push(candidates[0]);
+    return [...new Set(targets)];
+  }
+
+  async function scanAllHighlights() {
+    if (location.hostname !== 'shop.tiktok.com') return await scanNow();
+    if (fullScanInProgress) return await updateCount();
+    fullScanInProgress = true;
+
+    const targets = getScrollTargets();
+    const originalPositions = targets.map(target => target.scrollTop);
+    let stableRounds = 0;
+    let previousCount = -1;
+
+    try {
+      for (let round = 0; round < 60 && stableRounds < 4; round++) {
+        const urls = [...new Set([
+          ...extractUrlsFromPerformance(),
+          ...extractUrlsFromDom({ includeScripts: round === 0 })
+        ])];
+        await addUrls(urls, 'full-page-scan');
+        const count = await updateCount();
+        setStatus(`Đang quét toàn bộ Highlights… đã thấy ${count} video.`);
+
+        let moved = false;
+        for (const target of targets) {
+          const before = target.scrollTop;
+          const step = Math.max(Math.floor(target.clientHeight * 0.8), 500);
+          target.scrollTop = Math.min(target.scrollTop + step, target.scrollHeight);
+          if (target.scrollTop > before) moved = true;
+        }
+
+        if (!moved && count === previousCount) stableRounds += 1;
+        else stableRounds = 0;
+        previousCount = count;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      await scanNow();
+      const total = await updateCount();
+      setStatus(`Quét toàn bộ xong: ${total} URL có khả năng là video.`, 'success');
+      return total;
+    } finally {
+      targets.forEach((target, index) => { target.scrollTop = originalPositions[index]; });
+      fullScanInProgress = false;
+    }
+  }
+
   async function copyLinks() {
     await scanNow();
     const res = await runtimeSend({ type: 'GET_URLS' });
@@ -178,20 +240,22 @@
   }
 
   async function downloadAll() {
-    await scanNow();
+    if (location.hostname === 'shop.tiktok.com') await scanAllHighlights();
+    else await scanNow();
     const count = await updateCount();
     if (!count) {
       setStatus('Chưa có clip để tải. Bấm play clip trước.', 'error');
       return;
     }
 
-    setStatus('Đang bắt đầu tải, chờ Chrome xử lý...', 'success');
+    setStatus('Đang kiểm tra đúng file video rồi tải…', 'success');
     const res = await runtimeSend({ type: 'DOWNLOAD_ALL' });
     if (!res || !res.ok) {
       setStatus(`Lỗi tải: ${res && res.error ? res.error : 'không rõ'}`, 'error');
       return;
     }
-    setStatus(`Đã gửi ${res.started}/${res.total} clip vào Downloads.`, 'success');
+    const skippedText = res.skipped ? `, bỏ ${res.skipped} link JSON/TXT hoặc hết hạn` : '';
+    setStatus(`Đã gửi ${res.started}/${res.valid} video vào Downloads${skippedText}.`, res.started ? 'success' : 'error');
   }
 
   async function clearList() {
@@ -230,13 +294,13 @@
 
     const hint = document.createElement('div');
     hint.textContent = location.hostname === 'shop.tiktok.com'
-      ? 'Cuộn trang Highlights để TikTok nạp clip, rồi bấm Quét/Tải.'
+      ? 'Bấm Quét toàn bộ để tự cuộn, nạp và lọc đúng file video.'
       : 'Cuộn trang, bấm play clip cần lấy, rồi bấm Quét/Tải.';
     hint.style.cssText = 'line-height:1.35;color:#4b5563;';
 
     const row1 = document.createElement('div');
     row1.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;';
-    row1.appendChild(createButton('Quét trang', scanNow));
+    row1.appendChild(createButton(location.hostname === 'shop.tiktok.com' ? 'Quét toàn bộ' : 'Quét trang', location.hostname === 'shop.tiktok.com' ? scanAllHighlights : scanNow));
     row1.appendChild(createButton('Tải tất cả', downloadAll));
 
     const row2 = document.createElement('div');
