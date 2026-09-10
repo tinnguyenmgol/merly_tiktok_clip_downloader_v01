@@ -2,7 +2,7 @@
   if (window.__MERLY_TT_INJECTED__) return;
   window.__MERLY_TT_INJECTED__ = true;
 
-  const GOOD_RE = /(mime_type=video_mp4|\.(?:mp4|m4v|mov)(?:\?|$)|video\/tos|\/tos-[^/]*(?:ve|video)[^/]*\/|v\d+[a-z0-9-]*\.(?:tiktokcdn(?:-us)?|tiktokv)\.com|v\d+[a-z0-9-]*-(?:default|webapp)[^/]*\.|akamaized|byteoversea|ibytedtos|video_mp4|download=true)/i;
+  const GOOD_RE = /(mime_type=video_mp4|\.(?:mp4|m4v|mov)(?:[?#&]|$)|video\/tos|\/tos-[^/]*(?:ve|video)[^/]*\/|v\d+[a-z0-9-]*\.(?:tiktokcdn(?:-us)?|tiktokv)\.com|v\d+[a-z0-9-]*-(?:default|webapp)[^/]*\.|video_mp4)/i;
   const BAD_RE = /(mon-va|gali-mcs|\/collect(?:\/|\?|$)|\/monitor(?:\/|\?|$)|analytics|video_performance|sentry|abtest|captcha|mime_type=image|\.(?:jpe?g|png|webp|gif|svg)(?:~|\?|$))/i;
   const found = new Set();
 

@@ -16,8 +16,8 @@ Extension nội bộ để quét và tải hàng loạt clip live teaser trên T
    - TikTok Seller: `LIVE và video` → `Bán hàng qua LIVE` / trang teaser clip.
    - TikTok Shop LIVE Highlights: `https://shop.tiktok.com/streamer/live/highlights`.
 2. Reload lại trang sau khi cài extension.
-3. Cuộn tới buổi live cần lấy clip.
-4. Cuộn trang để TikTok nạp danh sách. Nếu chưa bắt được link, bấm play các clip cần tải.
+3. Tại LIVE Highlights, bấm `Quét toàn bộ` để extension tự cuộn và nạp toàn bộ danh sách.
+4. Nếu vẫn còn clip chưa bắt được link, bấm play clip đó rồi quét lại.
 5. Nhìn bảng `Merly TikTok Clips` ở góc dưới phải.
 6. Bấm `Quét trang`.
 7. Bấm `Tải tất cả`.
@@ -29,6 +29,7 @@ Video sẽ được tải về thư mục Downloads, trong folder dạng:
 ## Lưu ý
 
 - Link video TikTok có thời hạn, nên quét xong tải ngay.
+- Bản 0.2.1 kiểm tra Content-Type trước khi tải và tự bỏ link JSON/TXT hoặc link hết hạn.
 - Chỉ dùng với clip thuộc quyền quản lý của shop mình.
 - Nếu Chrome hỏi cho phép tải nhiều file, chọn `Allow`.
 - Nếu bảng chưa hiện clip, hãy bấm play từng clip rồi quét lại.
